@@ -2,7 +2,10 @@
 # ----------------------------------------------------------------------------
 # PicoPak Web Monitor Image Script picomon_img.php
 # ----------------------------------------------------------------------------
-# Rev A 08/13/16
+# Rev 0 08/12/16 Everything basically working - uploaded to Github
+# Rev A 08/13/16 Added frequency data plotting code
+# Rev B 08/15/16 Added squared frequency plot if < 1000 points
+#                Eliminated global variable use in several functions
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
 # Functions:
@@ -77,7 +80,8 @@ $numM = 0 ;
 $slope = 0.0;
 # Average fractional frequency offset
 $frequency = 0.0;
-# Average frequency
+# Average frequency#                Eliminated global variable use in several functions
+
 $avg = 0.0;
 # Raw sigma
 $sigma = 0.0;
@@ -100,18 +104,17 @@ define('SHOW_ADEV', TRUE);
 #
 # Function to connect to PicoPak database
 # Returns connection handle $pg2
-function connect_to_db()
+function connect_to_db($db_host, $db_name, $db_user, $db_password)
 {
     # INPUTS
     # Database logon credentials
-    GLOBAL $db_host;
-    GLOBAL $db_name;
-    GLOBAL $db_user;
-    GLOBAL $db_password;
+    # $db_host;
+    # $db_name;
+    # $db_user;
+    # $db_password;
 
     # OUTPUT
     # Database connection handle
-    GLOBAL $pg2;
 
     # START OF CODE
     $pg2 = pg_connect("hostaddr=$db_host dbname=$db_name
@@ -131,12 +134,12 @@ function connect_to_db()
 #
 # Function to read phase data from PostgreSQL database
 # No return (void)
-function read_data()
+function read_data($pg2, $n, $begin)
 {
     # INPUTS
-    GLOBAL $pg2;
-    GLOBAL $begin;
-    GLOBAL $n;
+    // GLOBAL $pg2;
+    // GLOBAL $n;
+    // GLOBAL $begin;
 
     # OUTPUTS
     GLOBAL $phase;
@@ -554,6 +557,7 @@ function draw_graph()
     GLOBAL $title; // For testing
 
     $plot = new PHPlot($w, $h);
+    $plot->SetPlotType('lines');
     # Omit this title setting if using it to display an earlier value
     if($type == 'phase')
     {
@@ -569,6 +573,11 @@ function draw_graph()
         // $title = 'PicoPak S/N ' . $sn . $ch . ' Frequency Data # = ' . $numM;
         $title = 'PicoPak S/N ' . $sn . $ch . ' Frequency Data';
         $label = 'Frequency, ' . $units;
+        # Use squared plot if frequency plot with fewer than 1000 data points
+        if($numM < 1000)
+        {
+           $plot->SetPlotType('squared');
+        }        
         $plot->SetDataValues($freq);
     }
     $plot->SetTitle($title);
@@ -580,7 +589,6 @@ function draw_graph()
     $plot->SetYTitle($label);
     $plot->SetYLabelType('data', 2);
     $plot->SetDrawXGrid(True);
-    $plot->SetPlotType('lines');
     $plot->SetPlotBorderType('full');
     if(SHOW_FREQ)
     {
@@ -598,8 +606,8 @@ function draw_graph()
 # It simply uses the above functions
 
 # This is our main processing code
-connect_to_db();
-read_data();
+$pg2 = connect_to_db($db_host, $db_name, $db_user, $db_password);
+read_data($pg2, $n, $begin);
 $sigma = calc_sigma($phase, $tau);
 if($type == 'freq')
 {

@@ -1,7 +1,10 @@
 <?php
 # ----------------------------------------------------------------------------
 # PicoMon Main Script picomon.php
-# Rev A 08/13/16
+# Rev 0 08/12/16 Everything basically working - uploaded to Github
+# Rev A 08/13/16 Added frequency data plotting code
+# Rev B 08/15/16 Added frequency plot selection
+#                Eliminated global variable use in several functions
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
 # These scripts are loosely based on the webform example
@@ -133,7 +136,7 @@ $tau = 0;
 $days = 0;
 $hours = 0;
 $mins = 0;
-$sec = 0;
+$secs = 0;
 # We need to send info to picomon_img.php script
 # It needs both the coded module S/N, n,
 # and the displayed S/N, sn, channel letter, ch and number, c,
@@ -155,7 +158,7 @@ $param = array("n" => -440,
  "db" => 'ppd',
  "user" => 'postgres',
  "pw" => 'root',
- "type" => 'freq',
+ "type" => 'phase',
  "w" => 1024,
  "h" => 768);
 # We define the associative array $measinfo
@@ -163,9 +166,12 @@ $param = array("n" => -440,
 $measinfo = array("desc" => ' ',
  "signame" => ' ',
  "refname" => ' ');
-
 # Module # from list
 $module = 0;
+# Plot type from radio buttons
+$type = 'phase';
+# Alternative plot text
+$alt = 'Phase data plot.';
 
 # Function build_url() is used to generate a URL with parameters
 # for the picomon_img.php script. The parameters are in an array.
@@ -235,7 +241,7 @@ function show_descriptive_text()
 {
 echo <<<END
 <p>
-This page displays a plot of the phase data for an active PicoPak clock measurement module.
+This page displays a plot of the phase or frequency data for an active PicoPak clock measurement module.
 </p>
 
 END;
@@ -249,18 +255,13 @@ function show_user_prompt()
 {
 echo <<<END
 <p>
-Select the desired PicoPak S/N from the list and press Plot.
+Select the desired PicoPak S/N and plot type and press Plot.
 </p>
 
 END;
 }
 
-# The function show_form() outputs the HTML form.
-# This includes a list box for the module and a submit button.
-# The form action URL is this script itself, so we use the SCRIPT_NAME
-# value to self-reference the script.
-#
-# Our PicoPak Web Monitor web page has a list control
+# Ther PicoPak Web Monitor web page has a list control
 # for the user to select the desired active module by its S/N.
 # The S/N is shown as a number like 110 for a PicoPak
 # and a number and letter like 110A fror a PicoScan channel.
@@ -275,18 +276,18 @@ END;
 # converting negative sn codes like -439 to PicoScan S/Ns like 110B.
 #
 # Function to fill a list of active PicoPaks and PicoScan channels:
-function fill_list()
+function fill_list($pg, $param)
 {
     # INPUTS
-    # Use the global connection handle in this function
-    GLOBAL $pg;
-    # Use the global parameter array
+    # $pg - Database connection handle
+    // GLOBAL $pg;
+    # $param - Parameter array
+    // GLOBAL $param;
     # It has default parameter values before show_graph() call
-    GLOBAL $param;
 
     # OUTPUTS
-    # Output the global # active measurements from this function
-    GLOBAL $num_active;
+    # Output the # active measurements from this function
+    // GLOBAL $num_active;
     # Output the global measurement array from this function
     GLOBAL $meas;
 
@@ -297,6 +298,9 @@ function fill_list()
     $i = 0;
 
     # START OF CODE
+    # Initialize # active modules to 0
+    $num_active = 0;
+
     # Compose query
     $query = "SELECT sn FROM measurement_modules WHERE active=TRUE";
 
@@ -307,7 +311,7 @@ function fill_list()
     # Save the results in the $meas array of arrays
     while($row = pg_fetch_array($result, NULL, PGSQL_ASSOC))
     {
-        # Set indisplay_meas(dex to zero-based row number
+        # Set index to zero-based row number
 	$i = $num_active;
 
         # Increment # active measurements
@@ -397,6 +401,7 @@ function fill_list()
         echo("PG = ".$param['pg']);
         echo("Width = ".$param['w'].", ");
         echo("Height = ".$param['h']);
+        echo("Type = ".$param['type'].", ");
         echo("<br />");
     }
 
@@ -415,20 +420,25 @@ function fill_list()
             echo("<br />");
         }
     }
+
+    # Return # active PicoPak modules
+    return $num_active;
 }
 
-# Output the web form.
+# The function show_form() outputs the HTML form.
+# This includes a list box for the module and a submit button.
+# The form action URL is this script itself, so we use the SCRIPT_NAME
+# value to self-reference the script.
 # The web form resubmits to this same script for processing.
 # The $param array contains default values for the form.
 #
 # Function to output the web form:
-function show_form($param)
+function show_form($param, $num_active, $meas)
 {
     # INPUTS
-    # Use the global # active measurements in this function
-    GLOBAL $num_active;
-    # Use the global measurement array in this function
-    GLOBAL $meas;
+    # $param - The parameter array
+    # $num_active - The # active measurements
+    # $meas - The measurement array
 
     # OUTPUTS
     # Output the global selected S/N, code, channel #
@@ -439,6 +449,8 @@ function show_form($param)
     GLOBAL $ch;
     # Output the global module # selected from list
     GLOBAL $module;
+    # Output the global plot type per radio buttons
+    GLOBAL $type;
 
     # When the browser is opened, the 1st module is selected.
     # The session variable then saves the selected module
@@ -449,23 +461,27 @@ function show_form($param)
     # START OF CODE
     $action = htmlspecialchars($_SERVER['SCRIPT_NAME']);
 
-    # Check that we have a saved module #
-    # We won't have one if the web browser has just been opened
+    # Check that we have a saved module # or plot type
+    # We won't have these if the web browser has just been opened
     if(empty($_SESSION))
     {
-        # Set it to 1st module in list
+        # Set module to 1st module in list
         $_SESSION["module"] = 0;
+
+        # Set plot type to phase
+        $_SESSION["type"] = 'phase';
     }
 
     # For testing
     // echo(" Saved Module # = " . $_SESSION["module"] . "<br /br>");
+    // echo(" Saved Plot Type = " . $_SESSION["type"] . "<br /br>");
 
 echo <<<END
 
 <form name="f1" id="f1" method="post" action="$action">
-  <table cellpadding="0" summary="Entry form">
+  <table summary="Entry form">
     <tr
-      <td align="left">
+      <td>
         <select name="module">
 
 END;
@@ -489,32 +505,57 @@ END;
 
 echo <<<END
 
-        </select> <br> <br>
+        </select> &nbsp &nbsp
+
+END;
+        if($_SESSION["type"] == "phase") // Is phase the previously selected plot type?
+        {
+            echo "<input type=\"radio\" name=\"type\" value=\"phase\" checked> Phase";
+            echo "<input type=\"radio\" name=\"type\" value=\"freq\"> Frequency";
+        }
+        else // Frequency
+        {
+            echo "<input type=\"radio\" name=\"type\" value=\"phase\"> Phase";
+            echo "<input type=\"radio\" name=\"type\" value=\"freq\" checked> Frequency";
+        }
+
+echo <<<END
+
       </td>
-      <td align="left"><input type="submit" value="Plot">
+    <tr>
+      <td>
+            <br><input type="submit" value="Plot">
       </td>
     </tr>
-
   </table>
 </form>
 
 END;
 
-    # Check that we have a PicoPak module selected
+    # Check that we have a PicoPak module and plot type selected
+    # Note: Won't have these 1st time after page opens
     if(empty($_POST))
     {
-        # If not, set it to the saved module #
+        # If not, set it to the saved module # and plot type
         $_POST["module"] = $_SESSION["module"];
+        $_POST["type"] = $_SESSION["type"];
     }
 
     # Get selected module
     $module = $_POST["module"];
 
+    # Get selected plot type
+    $type = $_POST["type"];
+
     // For testing
     // echo("<br /br>" . "Selected Module # = " . $module. "<br /br>");
+    // echo("<br /br>" . "Selected Plot Type = " . $type. "<br /br>");
 
     # Save selected module
     $_SESSION["module"] = $module;
+
+    # Save selected plot type
+    $_SESSION["type"] = $type;
 
     # Assign parameters for selected module
     $sn = $meas[$module][0];
@@ -522,7 +563,10 @@ END;
     $c = $meas[$module][2];
     $ch = $meas[$module][3];
 
-    // For testing
+    # For testing
+    // echo ("Plot Type = " . $type);
+
+    # For testing
     // echo(", S/N = " . $sn . ", Code = " . $n . " ,Chan # = " . $c . " ,Chan Letter = " . $ch);
 }
 
@@ -556,8 +600,10 @@ function show_graph()
     GLOBAL $days;
     GLOBAL $hours;
     GLOBAL $mins;
-    GLOBAL $sec;
+    GLOBAL $secs;
     GLOBAL $measinfo;
+    GLOBAL $type;
+    GLOBAL $alt;
 
     # OUTPUTS
     GLOBAL $param;
@@ -582,6 +628,8 @@ function show_graph()
     # Include the width and height as parameters:
     $param['w'] = GRAPH_WIDTH;
     $param['h'] = GRAPH_HEIGHT;
+    # Include the plot type as a parameter:
+    $param['type'] = $type;
 
     # URL to the graphing script, with parameters, escaped for HTML:
     $img_url = htmlspecialchars(build_url(GRAPH_SCRIPT, $param));
@@ -592,14 +640,27 @@ function show_graph()
         echo "  img_url=$img_url";
     }
 
+    # Compose the plot alternative text
+    if($type == 'phase')
+    {
+        $alt = 'Phase data plot.';
+    }
+    else // Frequency
+    {
+        $alt = 'Frequency data plot.';
+    }
+
+    # For testing
+    // echo $alt; 
+
     echo <<<END
 <hr>
 <p>
 
-Plot of $points points of phase data from the $measinfo[0] run for $measinfo[1] vs $measinfo[2] with a $tau second tau for PicoPak S/N $sn$ch from MJD $begin_mjd to $end_mjd, a span of $days days, $hours hours, $mins minutes and $sec seconds:
+Plot of $points points of phase data from the $measinfo[0] run for $measinfo[1] vs $measinfo[2] with a $tau second tau for PicoPak S/N $sn$ch from MJD $begin_mjd to $end_mjd, a span of $days days, $hours hours, $mins minutes and $secs seconds:
 
 <p><img src="$img_url" width="{$param['w']}" height="{$param['h']}"
-    alt="Phase data plot.">
+    alt="$alt">
 
 END;
 }
@@ -608,22 +669,24 @@ END;
 # or display error message if can't connect
 #
 # Function to connect to PicoPak database:
-function connect_to_db()
+function connect_to_db($db_host, $db_name, $db_user, $db_password)
 {
     # INPUTS
-    # Use the logon credentials in this function
-    GLOBAL $db_host;
-    GLOBAL $db_name;
-    GLOBAL $db_user;
-    GLOBAL $db_password;
+    # Database logon credentials in this function
+    # $db_host - Database host name (e.g., localhost) or URL (e.g., 127.0.0.1)
+    # $db_name - Database name (e.g., ppd) 
+    # $db_user - User name (e.g., postgres)
+    # $db_password - User password (e.g., root)
 
     # OUTPUTS
-    # Output the global connection handle from this function
-    GLOBAL $pg;
+    # Output the connection handle from this function
 
     # START OF CODE
     $pg = pg_connect("hostaddr=$db_host dbname=$db_name user=$db_user password=$db_password")
     or die("Can't connect to PicoPak database");
+
+    # Return database connection handle
+    return $pg;
 }
 
 # Function to get current MJD, which is also the end_mjd for an active run.
@@ -638,11 +701,10 @@ function connect_to_db()
 # Function to get the current MJD:
 function get_current_mjd()
 {
+    # NO GLOBALS
     # NO INPUTS
-
     # OUTPUTS
-    # Output the global end_mjd from this function
-    GLOBAL $end_mjd;
+    # Output the end_mjd from this function
 
     # START OF CODE
     $end_mjd = 40587.0 + time() / 86400.0;
@@ -652,6 +714,9 @@ function get_current_mjd()
         $format = "The current MJD is %f.";
         printf($format, $end_mjd);
     }
+    
+    # Return end MJD
+    return $end_mjd;
 }
 
 # Function to get the begin_mjd for the selected run.
@@ -661,17 +726,14 @@ function get_current_mjd()
 # SELECT begin_mjd FROM measurement_list WHERE sn=$sn ORDER BY begin_mjd DESC LIMIT 1 
 #
 # Function to get begin_mjd of the measurement:
-function get_begin_mjd()
+function get_begin_mjd($pg, $n)
 {
+    # NO GLOBALS
     # INPUTS
-    # Use the global connection
-    GLOBAL $pg;
-    # Use the global code in this function
-    GLOBAL $n;
-
+    # $pg - Database connection handle
+    # $n - PicoPak module S/N code
     # OUTPUTS
-    # Output the global begin_mjd from this function
-    GLOBAL $begin_mjd;
+    # Output the begin_mjd from this function
 
     # Note: get_begin_mjd() must be called after fill_list so that $n is set
  
@@ -690,26 +752,27 @@ function get_begin_mjd()
     {
         echo("<br>The beginning MJD for the run is $begin_mjd.");
     }
+
+    # Return the begin MJD
+    return $begin_mjd;
 }
 
 # The measurement span is simply the difference between the end and begin MJDs
 # expressed in days, hours, minutes and seconds.
 #
 # Function to calculate the measurement span:
-function calc_span()
+function calc_span($begin_mjd, $end_mjd)
 {
     # INPUTS
-    # Use the global begin_mjd in this function
-    GLOBAL $begin_mjd;
-    # Use the global end_mjd in this function
-    GLOBAL $end_mjd;
+    # $begin_mjd - Beginning MJD for phase data
+    # $end_mjd - Ending MJD for phase data
 
     # OUTPUTS
     # Output the global span in days, hours, minutes and seconds
     GLOBAL $days;
     GLOBAL $hours;
     GLOBAL $mins;
-    GLOBAL $sec;
+    GLOBAL $secs;
 
     # START OF CODE
     # Calculate the measurement span
@@ -717,35 +780,32 @@ function calc_span()
     $days = (int)($end_mjd - $begin_mjd);
     $hours = (int)(($span - $days)*24);
     $mins = (int)(((($span - $days)*24) - $hours)*60);
-    $sec = (int)(((($span - $days)*24 - $hours)*60 - $mins)*60);
+    $secs = (int)(((($span - $days)*24 - $hours)*60 - $mins)*60);
 
     # For testing
     // echo("Span = $span, ");
     // echo("Days = $days, ");
     // echo("Hours = $hours, ");
     // echo("Mins = $mins, ");
-    // echo("Sec = $sec");
+    // echo("Sec = $secs");
 }
 
 # We get the measurement tau from the measurement_list table
 # corresponding to the largest begin_mjd for the selected S/N.
 #
 # Function to get the measurement tau:
-function get_tau()
+function get_tau($pg, $n)
 {
+    # NO GLOBALS
     # INPUTS
-    # Use the global connection
-    GLOBAL $pg;
-    # Use the global S/N code in this function
-    GLOBAL $n;
-
+    # $pg - Database connection handle
+    # $n - PicoPak module S/N code
     # OUTPUTS
-    # Use the global tau in this function
-    GLOBAL $tau;
+    # Output the measurement tau from this function
 
-    # START OF CODE
     # Note: get_tau() must be called after fill_list so that $n is set
- 
+    
+    # START OF CODE
     # Compose query
     $query = "SELECT tau FROM measurement_list WHERE sn=$n ORDER BY begin_mjd DESC LIMIT 1";
 
@@ -760,6 +820,9 @@ function get_tau()
         # Display measurement tau    
         echo("The measurement tau is $tau seconds for S/N code $n.");
     }
+
+    # Return the measurement tau
+    return $tau;
 }
 
 # Function to get information about the PicoPak measurement.
@@ -767,17 +830,15 @@ function get_tau()
 # and measurement description for the current measurement.
 #
 # Function to get measurement information: 
-function get_meas_info()
+function get_meas_info($pg, $n)
 {
+    # NO GLOBALS
     # INPUTS
-    # Use the global connection
-    GLOBAL $pg;
-    # Use the global S/N code in this function
-    GLOBAL $n;
+    # $pg - Database connection handle
+    # $n - PicoPak module S/N code
 
     # OUTPUTS
-    # Output info into the global measinfo array from this function
-    GLOBAL $measinfo;
+    # Output global measinfo array from this function
 
     # START OF CODE
     # Get last sig_id, ref_id and description entries from
@@ -843,6 +904,9 @@ function get_meas_info()
         # Display measurement description    
         echo("The reference clock name is $measinfo[2] for S/N code $n.");
     }
+
+    # Return the measurement information
+    return $measinfo;
 }
 
 # Finally, with all the functions defined, the main code is just a few lines.
@@ -857,14 +921,14 @@ session_start();
 begin_page("PicoPak Web Monitor");
 show_descriptive_text();
 show_user_prompt();
-connect_to_db();
-fill_list();
-show_form($param);
-get_begin_mjd();
-get_current_mjd();
-get_tau();
-calc_span();
-get_meas_info();
+$pg = connect_to_db($db_host, $db_name, $db_user, $db_password);
+$num_active = fill_list($pg, $param);
+show_form($param, $num_active, $meas);
+$begin_mjd = get_begin_mjd($pg, $n);
+$end_mjd = get_current_mjd();
+$tau = get_tau($pg, $n);
+calc_span($begin_mjd, $end_mjd);
+$measinfo = get_meas_info($pg, $n);
 show_graph();
 end_page();
 ?>
