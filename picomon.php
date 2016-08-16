@@ -5,12 +5,15 @@
 # Rev A 08/13/16 Added frequency data plotting code
 # Rev B 08/15/16 Added frequency plot selection
 #                Eliminated global variable use in several functions
+# Rev C 08/16/16 Add writing of phase data file
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
 # These scripts are loosely based on the webform example
 # in the PHPlot referfence manual.
 # ----------------------------------------------------------------------------
 # You must enter the database logon credentials into this script.
+# ----------------------------------------------------------------------------
+# You must also enter the data filename into the picomon_img.php script.
 # ----------------------------------------------------------------------------
 # Hint: Set display_errors=on in php.ini for development, off for deployment.
 # ----------------------------------------------------------------------------

@@ -6,7 +6,10 @@
 # Rev A 08/13/16 Added frequency data plotting code
 # Rev B 08/15/16 Added squared frequency plot if < 1000 points
 #                Eliminated global variable use in several functions
+# Rev C 08/16/16 Add writing of phase data file
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
+# ----------------------------------------------------------------------------
+# You must enter the data filename into this script.
 # ----------------------------------------------------------------------------
 # Functions:
 #    connect_to_db()
@@ -17,9 +20,9 @@
 #    phase_to_freq()
 #    scale_phase_data()
 #    scale_freq_data()
+#    write_data()
 #    draw_graph()
 # ----------------------------------------------------------------------------
-#
 # This second script generates the plot using PHPlot.
 # The URL to this script, along with its parameters,
 # is produced and sent by the main script.
@@ -93,6 +96,13 @@ $leg2 = '';
 # Macros to control legends
 define('SHOW_FREQ', TRUE);
 define('SHOW_ADEV', TRUE);
+
+# Phase data filename
+# Edit this name as desired
+# The filename must be enclosed in quotes
+# You must have read/write permission in its folder
+# A public folder is recommended where it can be accessed remotely
+define('FILENAME', "/home/bill/Public/picomon.dat");
 
 # No check for parameters supplied to this web page.
 # Parameters S/B OK though the calling script
@@ -535,6 +545,79 @@ function scale_freq_data()
     return $units;
 }
 
+# Write phase data file to disk
+# The filename is set with the FILENAME macro
+# The filename must be enclosed in quotes there
+# and you must have read/write permission in that folder
+#
+# Function to write phase data file to disk
+function write_data($phase, $pg2, $begin, $tau)
+{
+    # For testing
+    GLOBAL $title;
+
+    # Set 1st MJD to bginning MJD as default
+    $first = $begin;
+
+    # Open data file for reading and writing
+    if(($handle = fopen(FILENAME, "w+"))==0)
+    {
+        # Error - Couldn't open file
+        # Probably don't have write permission for the folder
+        # Silently quit   
+        return;
+    }
+
+    # Get # phase data points
+    $num = count($phase);
+
+    # Get MJD of 1st phase data point = $first_mjd
+    # The begin_mjd is set when the measurement run begins
+    # and the 1st data point is writen to the database a little later
+    # Use database query:
+    # SELECT mjd FROM measurements where mjd > begin_mjd ORDER BY mjd LIMIT 1
+    # We already have a database connection $pg2
+    # Compose query
+    $query = "SELECT mjd FROM measurements WHERE mjd > $begin ORDER BY mjd LIMIT 1";
+
+    # Perform query
+    $result = pg_query($pg2, $query);
+
+    # Check result
+    if(!$result)
+    {
+        # Query failed
+        # Put message into the plot title to display it
+        # Won't show up unless we are debugging
+        // $title = "Query failed"; // For testing
+    }   
+
+    # Get # rows returned - Should be 1
+    $numN = pg_num_rows($result);
+        
+    # Check that we got data
+    if($numN!=1)
+    {
+        # No result
+        # Put message into the plot title to display it
+        // $title = "No Result"; // For testing
+    }
+    else // Query result OK
+    {
+        # Get result (the MJD of the 1st data point)
+        list($first) = pg_fetch_row($result);
+    }
+
+    # Write timetagged phase data to file
+    # We get the timetag as the first MJD plus N times tau (in days)
+    for($i=0; $i<$num-1; $i++)
+    {
+        // Compose line of MJD timetag and phase value
+        // Note that the phase array index is 1-based
+        fwrite($handle, ($first + ($i*$tau/86400.0)) . " " . $phase[$i+1][2] . "\n");
+    } 
+}
+
 # Function draw_graph() uses PHPlot to actually produce the graph.
 # A PHPlot object is created, set up, and then told to draw the plot.
 #
@@ -608,6 +691,7 @@ function draw_graph()
 # This is our main processing code
 $pg2 = connect_to_db($db_host, $db_name, $db_user, $db_password);
 read_data($pg2, $n, $begin);
+write_data($phase, $pg2, $begin, $tau);
 $sigma = calc_sigma($phase, $tau);
 if($type == 'freq')
 {
