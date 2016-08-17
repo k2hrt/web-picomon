@@ -97,12 +97,16 @@ $leg2 = '';
 define('SHOW_FREQ', TRUE);
 define('SHOW_ADEV', TRUE);
 
-# Phase data filename
+# Phase data folder
 # Edit this name as desired
-# The filename must be enclosed in quotes
-# You must have read/write permission in its folder
+# You must have read/write permission in this folder
 # A public folder is recommended where it can be accessed remotely
-define('FILENAME', "/home/bill/Public/picomon.dat");
+define('FOLDER', "/home/bill/Public/");
+# Phase data filename
+# A .dat (general data) or .phd (Stable32 phase data)
+# extension is recommended
+# Edit this name as desired
+define('FILENAME', "picomon.dat");
 
 # No check for parameters supplied to this web page.
 # Parameters S/B OK though the calling script
@@ -546,9 +550,9 @@ function scale_freq_data()
 }
 
 # Write phase data file to disk
-# The filename is set with the FILENAME macro
-# The filename must be enclosed in quotes there
-# and you must have read/write permission in that folder
+# The file folder is set with the FOLDER macro
+# You must have read/write permission in that folder
+# The file name is set with the FILENAME macro
 #
 # Function to write phase data file to disk
 function write_data($phase, $pg2, $begin, $tau)
@@ -559,14 +563,19 @@ function write_data($phase, $pg2, $begin, $tau)
     # Set 1st MJD to bginning MJD as default
     $first = $begin;
 
-    # Open data file for reading and writing
-    if(($handle = fopen(FILENAME, "w+"))==0)
+    # Check folder write permission
+    # before trying to open a file for writing
+    $perms = fileperms(FOLDER);
+    if(!($perms & 0x0002))
     {
-        # Error - Couldn't open file
-        # Probably don't have write permission for the folder
-        # Silently quit   
+        # For testing
+        $title = "No write permission";
+        # Silently quit - can't write data file  
         return;
-    }
+    } 
+
+    # Open data file for reading and writing
+    $handle = fopen(FOLDER . FILENAME, "w+");
 
     # Get # phase data points
     $num = count($phase);
@@ -646,7 +655,7 @@ function draw_graph()
     {
         $numM = count($phase);
         // $title = 'PicoPak S/N ' . $sn . $ch . ' Phase Data # = ' . $numN;
-        $title = 'PicoPak S/N ' . $sn . $ch . ' Phase Data';
+        // $title = 'PicoPak S/N ' . $sn . $ch . ' Phase Data';
         $label = 'Phase, ' . $units;
         $plot->SetDataValues($phase);
     }
