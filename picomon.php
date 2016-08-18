@@ -6,6 +6,7 @@
 # Rev B 08/15/16 Added frequency plot selection
 #                Eliminated global variable use in several functions
 # Rev C 08/16/16 Add writing of phase data file
+# Rev D 08/18/16 Release 1.00
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
 # These scripts are loosely based on the webform example
@@ -176,6 +177,7 @@ $type = 'phase';
 # Alternative plot text
 $alt = 'Phase data plot.';
 
+# ----------------------------------------------------------------------------
 # Function build_url() is used to generate a URL with parameters
 # for the picomon_img.php script. The parameters are in an array.
 # The return value is a relative or complete URL.
@@ -205,6 +207,7 @@ function build_url($url, $param)
     return $url;
 }
 
+# ----------------------------------------------------------------------------
 # The function begin_page() creates the HTML at the top of the page.
 #
 # Function to output the start of the HTML page:
@@ -223,6 +226,7 @@ echo <<<END
 END;
 }
 
+# ----------------------------------------------------------------------------
 # The function end_page() creates the HTML at the end of the page.
 #
 # Function to output the bottom of the HTML page:
@@ -235,7 +239,7 @@ echo <<<END
 END;
 }
 
-
+# ----------------------------------------------------------------------------
 # The function show_descriptive_text() produces HTML text which
 # describes the form. This goes above the form on the web page.
 #
@@ -250,6 +254,7 @@ This page displays a plot of the phase or frequency data for an active PicoPak c
 END;
 }
 
+# ----------------------------------------------------------------------------
 # The function show_user_prompt() produces HTML text which
 # prompts the user to select a PicoPak module and plot its data.
 #
@@ -258,13 +263,14 @@ function show_user_prompt()
 {
 echo <<<END
 <p>
-Select the desired PicoPak S/N and plot type and press Plot.
+Select the desired PicoPak S/N and plot type, and press Plot.
 </p>
 
 END;
 }
 
-# Ther PicoPak Web Monitor web page has a list control
+# ----------------------------------------------------------------------------
+# The PicoPak Web Monitor web page has a list control
 # for the user to select the desired active module by its S/N.
 # The S/N is shown as a number like 110 for a PicoPak
 # and a number and letter like 110A fror a PicoScan channel.
@@ -428,6 +434,7 @@ function fill_list($pg, $param)
     return $num_active;
 }
 
+# ----------------------------------------------------------------------------
 # The function show_form() outputs the HTML form.
 # This includes a list box for the module and a submit button.
 # The form action URL is this script itself, so we use the SCRIPT_NAME
@@ -573,6 +580,7 @@ END;
     // echo(", S/N = " . $sn . ", Code = " . $n . " ,Chan # = " . $c . " ,Chan Letter = " . $ch);
 }
 
+# ----------------------------------------------------------------------------
 # The function show_graph() produces the HTML which will invoke
 # the second script to produce the graph.
 # This is an image (img) tag which references the second script,
@@ -668,6 +676,7 @@ Plot of $points points of phase data from the $measinfo[0] run for $measinfo[1] 
 END;
 }
 
+# ----------------------------------------------------------------------------
 # Connect to PicoPak database
 # or display error message if can't connect
 #
@@ -692,6 +701,7 @@ function connect_to_db($db_host, $db_name, $db_user, $db_password)
     return $pg;
 }
 
+# ----------------------------------------------------------------------------
 # Function to get current MJD, which is also the end_mjd for an active run.
 # We get the current time from the local operating system
 # which is usually the same as that of the database server
@@ -722,6 +732,7 @@ function get_current_mjd()
     return $end_mjd;
 }
 
+# ----------------------------------------------------------------------------
 # Function to get the begin_mjd for the selected run.
 # We get this from the measurements_list table
 # as the largest begin_mjd value for the selected sn
@@ -760,6 +771,7 @@ function get_begin_mjd($pg, $n)
     return $begin_mjd;
 }
 
+# ----------------------------------------------------------------------------
 # The measurement span is simply the difference between the end and begin MJDs
 # expressed in days, hours, minutes and seconds.
 #
@@ -793,6 +805,7 @@ function calc_span($begin_mjd, $end_mjd)
     // echo("Sec = $secs");
 }
 
+# ----------------------------------------------------------------------------
 # We get the measurement tau from the measurement_list table
 # corresponding to the largest begin_mjd for the selected S/N.
 #
@@ -828,6 +841,7 @@ function get_tau($pg, $n)
     return $tau;
 }
 
+# ----------------------------------------------------------------------------
 # Function to get information about the PicoPak measurement.
 # We get the names of signal and reference clocks
 # and measurement description for the current measurement.
@@ -912,6 +926,7 @@ function get_meas_info($pg, $n)
     return $measinfo;
 }
 
+# ----------------------------------------------------------------------------
 # Finally, with all the functions defined, the main code is just a few lines.
 
 # This is the main processing code.

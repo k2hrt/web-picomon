@@ -7,6 +7,7 @@
 # Rev B 08/15/16 Added squared frequency plot if < 1000 points
 #                Eliminated global variable use in several functions
 # Rev C 08/16/16 Add writing of phase data file
+# Rev D 08/18/16 Release 1.00
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
 # You must enter the data filename into this script.
@@ -112,6 +113,7 @@ define('FILENAME', "picomon.dat");
 # Parameters S/B OK though the calling script
 # Do not call this script directly with arbitrary parameters.
 
+# ----------------------------------------------------------------------------
 # Connect to PicoPak database
 # or display error message if can't connect
 # This 2nd connection is separate from that in 1st script
@@ -138,6 +140,7 @@ function connect_to_db($db_host, $db_name, $db_user, $db_password)
     return $pg2;
 }
 
+# ----------------------------------------------------------------------------
 # The following function reads the phase data for the selected
 # PicoPak module from the PostgreSQL database measurerments table.
 # We have the pg connection pointer for the database connection.
@@ -226,6 +229,7 @@ function read_data($pg2, $n, $begin)
     // $title = strval($phase[0][2]);
 }
 
+# ----------------------------------------------------------------------------
 # Function to calculate the average frequency offset
 # as the slope of the linear regression of the phase data
 # Returns $slope
@@ -266,6 +270,7 @@ function calc_freq_slope($phase, $tau)
     return $slope; 
 }
 
+# ----------------------------------------------------------------------------
 # Function to calculate the average frequency offset
 # as the average of the freq data
 # Returns $avg
@@ -298,6 +303,7 @@ function calc_freq_avg($freq)
     return $avg; 
 }
 
+# ----------------------------------------------------------------------------
 # Function to calculate the Allan deviation
 # for the phase data at its data tau (AF=1)
 # Returns $sigma
@@ -330,6 +336,7 @@ function calc_sigma($phase, $tau)
     return $sigma;
 }
 
+# ----------------------------------------------------------------------------
 # Function to convert phase data to frequency data
 # No return (void)
 function phase_to_freq($phase, $freq, $tau)
@@ -363,6 +370,7 @@ function phase_to_freq($phase, $freq, $tau)
     // $title = "freq[10] = " . $freq[$numM-1][2] . ", numN = " . $numN . ", numM = " . $numM;
 }
 
+# ----------------------------------------------------------------------------
 # The following function scales the phase data to engineering units
 # It takes the indexed phase data array as a parameter,
 # scales it to engineering units, and returns the units name
@@ -457,6 +465,7 @@ function scale_phase_data()
     return $units;
 }
 
+# ----------------------------------------------------------------------------
 # The following function scales the frequency data to engineering units
 # It takes the indexed freq data array as a parameter,
 # scales it to engineering units, and returns the units name
@@ -549,6 +558,7 @@ function scale_freq_data()
     return $units;
 }
 
+# ----------------------------------------------------------------------------
 # Write phase data file to disk
 # The file folder is set with the FOLDER macro
 # You must have read/write permission in that folder
@@ -565,6 +575,9 @@ function write_data($phase, $pg2, $begin, $tau)
 
     # Check folder write permission
     # before trying to open a file for writing
+    # Note: This is the only check made
+    # There are other possible reasons for a failure
+    # to open the data file that could make the plotting script fail
     $perms = fileperms(FOLDER);
     if(!($perms & 0x0002))
     {
@@ -627,6 +640,7 @@ function write_data($phase, $pg2, $begin, $tau)
     } 
 }
 
+# ----------------------------------------------------------------------------
 # Function draw_graph() uses PHPlot to actually produce the graph.
 # A PHPlot object is created, set up, and then told to draw the plot.
 #
@@ -694,6 +708,7 @@ function draw_graph()
     $plot->DrawGraph();
 }
 
+# ----------------------------------------------------------------------------
 # Lastly, the main code for the image drawing script
 # It simply uses the above functions
 
