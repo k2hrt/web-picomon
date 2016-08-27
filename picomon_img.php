@@ -8,6 +8,7 @@
 #                Eliminated global variable use in several functions
 # Rev C 08/16/16 Add writing of phase data file
 # Rev D 08/18/16 Release 1.00
+# Rev E 08/27/16 Add option to downsample phase data with AF
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
 # You must enter the data filename into this script.
@@ -15,6 +16,7 @@
 # Functions:
 #    connect_to_db()
 #    read_data()
+#    read_and_downsample_data
 #    calc_freq_slope()
 #    calc_freq_avg()
 #    calc_sigma()
@@ -29,6 +31,33 @@
 # is produced and sent by the main script.
 # When the user's browser asks the web server for the image,
 # this second script runs and generates the plot.
+
+# Some comments re the # of data points and data array size:
+# At some point (say 10k) the # of points in a plot reaches
+# a value where more doesn't add insight, especially for a
+# frequency plot where it often becomes just a solid band of noise.
+# There are also issues of speed and resource limits.
+# In fact, there appears to be some problem with PHP/PHPlot with
+# data sets greater than around 100k points, a number easily exceeded
+# by 1 second PicoPak data over longer than a day.
+# So some sort of data averaging/decimation/downsampling seems needed.
+# Downsampling is easy to do with phase data,
+# and that is what is done here.  In fact, it's quite easy to do
+# since the entire data set is extracted from the database
+# and then put into a plot array of arrays for plotting.
+# One can either bound the # of points with an averaging factor
+# or set a "even" one.  The former seems appropriate for
+# an automated process, while the later is best for manual analysis.
+# Either is easily supported, and macros allow their choice here.
+#
+# The text before the plot does not change with the averaging factor
+# but when AF>1, it is displayed as a legend.
+#
+# Another note: When a PicoPak or PicoScan run ends w/o an end MJD
+# being put into the database, the # of data points shown in the text
+# may be much greater than their actual number.  Since that text
+# is written before the actual # of points is known, it is not easy
+# to adjust, and is left as s problem for the database to fix. 
 
 require_once 'phplot.php';
 
@@ -94,6 +123,7 @@ $adev = 0.0;
 # Legends
 $leg1 = '';
 $leg2 = '';
+$leg3 = '';
 # Macros to control legends
 define('SHOW_FREQ', TRUE);
 define('SHOW_ADEV', TRUE);
@@ -108,6 +138,12 @@ define('FOLDER', "/home/bill/Public/");
 # extension is recommended
 # Edit this name as desired
 define('FILENAME', "picomon.dat");
+#
+# Macros to control downsampling
+define('DOWNSAMPLE', TRUE);
+define('MAXSIZE', 50000);
+define('MANUAL_AF', FALSE);
+define('AF', 1000); // Set value for manual AF
 
 # No check for parameters supplied to this web page.
 # Parameters S/B OK though the calling script
@@ -217,6 +253,122 @@ function read_data($pg2, $n, $begin)
             $phase[$i][0] = '';
             $phase[$i][1] = $i+1;
             $phase[$i][2] = $row[0];
+ 
+            # Increment index
+            $i++;
+        }
+    }
+
+    # For testing, examine the contents of the $phase array
+    # The 1st index is the 2-dimensional array row
+    # The 2nd index is the 2-dimensional array column
+    // $title = strval($phase[0][2]);
+}
+
+# ----------------------------------------------------------------------------
+# The following function reads the phase data for the selected
+# PicoPak module from the PostgreSQL database measurerments table.
+# with optional downsampling when it exceeds MAXSIZE
+# We have the pg connection pointer for the database connection.
+# The query is for all the meas values for the selected sn
+# from the beginning MJD.
+# The $phase array is an array of arrays
+# each of which is a blank label string, an index, and a phase value.
+#
+# Function to read phase data from PostgreSQL database
+
+# No return (void)
+function read_and_downsample_data($pg2, $n, $begin)
+{
+    # INPUTS
+    // GLOBAL $pg2;
+    // GLOBAL $n;
+    // GLOBAL $begin;
+
+    # OUTPUTS
+    GLOBAL $phase;
+    GLOBAL $numN;
+    GLOBAL $af;
+    GLOBAL $title; // For testing
+
+    # Read phase data from database.
+    # We read all of it in one query
+    # asking for meas values from the measurements table
+    # for selected S/N code starting at the beginning MJD.
+    # We get the number of points from the row count.
+    {
+        # Compose query
+        $query = "SELECT meas FROM measurements WHERE sn = $n
+        AND mjd > $begin order by mjd";
+
+        # Perform query
+        # This extracts all the selected phase data from the database
+        $result = pg_query($pg2, $query);
+
+        # Check result
+        if(!$result)
+        {
+            # Query failed
+            # Put message into the plot title to display it
+            $title = "Query failed"; // For testing
+        }   
+
+        # Get # rows returned = # phase data points
+        # Note: Can have OK result with no rows returned
+	$numN = pg_num_rows($result);
+        
+        # For testing, put # points into the plot title to display it
+        // $title = strval($numN);
+        
+        # Check that we got data
+        if($numN==0)
+        {
+            # No Data
+            # Put message into the plot title to display it
+            $title = "No Data"; // For testing
+        }
+
+        # Initialize data point index
+        $i = 0;
+
+        # Determine the required averaging factor
+        $af = ceil($numN / MAXSIZE);
+
+        # Manually set AF
+        if(MANUAL_AF)
+        {
+            $af = AF;
+        }
+
+        # For testing - Put $af into title
+        // $title = $af;
+
+        # Fetch data and save it in $phase array
+        # pg_fetch_data() fetches next row as an array of strings
+        # (starting at 1st row) into array $row
+        # (there is only 1 item per row, the meas value)
+        # and returns zero when there are no more points
+        #
+        # Downsampling is done by saving the data modulo the AF
+        # using the 2nd index $j for the phase array
+        $j = 0;
+
+        while($row = pg_fetch_row($result))
+        {
+            if(($i % $af)==0)
+            {
+                # Save point in $phase array for data-data plot format
+                # The 1st item in each $phase row is a blank label
+                # The 2nd item in each $phase row is the data point #
+                # It starts at 1 and goes to $numN
+                # The 3rd item in each $phase row is the phase value
+                $phase[$j][0] = '';
+                $phase[$j][1] = $j+1;
+                $phase[$j][2] = $row[0];
+                
+                # Increment array index
+                $j++; 
+            }
  
             # Increment index
             $i++;
@@ -611,7 +763,7 @@ function write_data($phase, $pg2, $begin, $tau)
         # Query failed
         # Put message into the plot title to display it
         # Won't show up unless we are debugging
-        // $title = "Query failed"; // For testing
+        $title = "Query failed"; // For testing
     }   
 
     # Get # rows returned - Should be 1
@@ -622,7 +774,7 @@ function write_data($phase, $pg2, $begin, $tau)
     {
         # No result
         # Put message into the plot title to display it
-        // $title = "No Result"; // For testing
+        $title = "No Result"; // For testing
     }
     else // Query result OK
     {
@@ -660,6 +812,8 @@ function draw_graph()
     GLOBAL $h;
     GLOBAL $leg1;
     GLOBAL $leg2;
+    GLOBAL $leg3;
+    GLOBAL $af;
     GLOBAL $title; // For testing
 
     $plot = new PHPlot($w, $h);
@@ -669,7 +823,7 @@ function draw_graph()
     {
         $numM = count($phase);
         // $title = 'PicoPak S/N ' . $sn . $ch . ' Phase Data # = ' . $numN;
-        // $title = 'PicoPak S/N ' . $sn . $ch . ' Phase Data';
+        $title = 'PicoPak S/N ' . $sn . $ch . ' Phase Data';
         $label = 'Phase, ' . $units;
         $plot->SetDataValues($phase);
     }
@@ -704,6 +858,10 @@ function draw_graph()
     {
         $plot->SetLegend($leg2);
     }
+    if($af > 1)
+    {
+        $plot->SetLegend($leg3);
+    }
     $plot->SetLegendStyle('right', 'none');
     $plot->DrawGraph();
 }
@@ -714,7 +872,14 @@ function draw_graph()
 
 # This is our main processing code
 $pg2 = connect_to_db($db_host, $db_name, $db_user, $db_password);
-read_data($pg2, $n, $begin);
+if(DOWNSAMPLE=='TRUE')
+{
+    read_and_downsample_data($pg2, $n, $begin);
+}
+else // No "averaging"
+{
+    read_data($pg2, $n, $begin);
+}
 write_data($phase, $pg2, $begin, $tau);
 $sigma = calc_sigma($phase, $tau);
 if($type == 'freq')
@@ -733,6 +898,7 @@ else // Phase plot
     scale_phase_data();
 }
 $adev = sprintf("%10.3e", $sigma);
-$leg2='ADEV = ' . $adev;
+$leg2 = 'ADEV = ' . $adev;
+$leg3 = 'Avg Factor  =   ' . $af;
 draw_graph();
 
