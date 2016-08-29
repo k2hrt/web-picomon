@@ -9,6 +9,10 @@
 # Rev C 08/16/16 Add writing of phase data file
 # Rev D 08/18/16 Release 1.00
 # Rev E 08/27/16 Add option to downsample phase data with AF
+#       08/28/16 Minor editing and commenting
+#       08/29/16 Add AF from URL parameter passed by main script
+#                Release 1.10
+#
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
 # You must enter the data filename into this script.
@@ -53,6 +57,17 @@
 # The text before the plot does not change with the averaging factor
 # but when AF>1, it is displayed as a legend.
 #
+# Other AF possibilities:
+#   Manual entry via text, list or radio button controls
+#   Force "even" AFs like multiples of 2, 5, 10
+#   Let user enter AF on picomon.php command line
+#   and pass it to this image script on its command line
+#
+# This last possibility seems best ans is implemented
+# No AF or AF=0 entered by user => Use default MAXSIZE
+# AF=1 => No averaging, use all data
+# AF>1 => Do averaging by user-chosen factor
+#
 # Another note: When a PicoPak or PicoScan run ends w/o an end MJD
 # being put into the database, the # of data points shown in the text
 # may be much greater than their actual number.  Since that text
@@ -92,6 +107,8 @@ $db_password = strval($_GET['pw']);
 $w = intval($_GET['w']);
 # Plot height in pixels
 $h = intval($_GET['h']);
+# Averaging factor
+$af = intval($_GET['af']);
 # Phase data units
 $units = " ";
 # Plot title
@@ -113,8 +130,7 @@ $numM = 0 ;
 $slope = 0.0;
 # Average fractional frequency offset
 $frequency = 0.0;
-# Average frequency#                Eliminated global variable use in several functions
-
+# Average frequency
 $avg = 0.0;
 # Raw sigma
 $sigma = 0.0;
@@ -141,7 +157,7 @@ define('FILENAME', "picomon.dat");
 #
 # Macros to control downsampling
 define('DOWNSAMPLE', TRUE);
-define('MAXSIZE', 50000);
+define('MAXSIZE', 5000);
 define('MANUAL_AF', FALSE);
 define('AF', 1000); // Set value for manual AF
 
@@ -275,8 +291,11 @@ function read_data($pg2, $n, $begin)
 # The $phase array is an array of arrays
 # each of which is a blank label string, an index, and a phase value.
 #
+# No AF or AF=0 entered by user => Use default MAXSIZE
+# AF=1 => No averaging, use all data
+# AF>1 => Do averaging by user-chosen factor
 # Function to read phase data from PostgreSQL database
-
+#
 # No return (void)
 function read_and_downsample_data($pg2, $n, $begin)
 {
@@ -331,10 +350,18 @@ function read_and_downsample_data($pg2, $n, $begin)
         # Initialize data point index
         $i = 0;
 
-        # Determine the required averaging factor
-        $af = ceil($numN / MAXSIZE);
+        # Set the averasging factor
+        if($af == 0) // Use default averaging per MAXSIZE
+        {
+            # Determine the required averaging factor
+            $af = ceil($numN / MAXSIZE);
+        }
+        else
+        {
+            # Otherwise, use user-entered AF
+        }
 
-        # Manually set AF
+        # Manually set AF per AF macro if MANUAL_AF is TRUE
         if(MANUAL_AF)
         {
             $af = AF;
@@ -899,6 +926,6 @@ else // Phase plot
 }
 $adev = sprintf("%10.3e", $sigma);
 $leg2 = 'ADEV = ' . $adev;
-$leg3 = 'Avg Factor  =   ' . $af;
+$leg3 = ' Avg Factor =   ' . $af;
 draw_graph();
 

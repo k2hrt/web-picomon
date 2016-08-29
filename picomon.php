@@ -7,7 +7,11 @@
 #                Eliminated global variable use in several functions
 # Rev C 08/16/16 Add writing of phase data file
 # Rev D 08/18/16 Release 1.00
+# Rev E 08/29/16 Add AF from URL parameter passed to image script
+#                from picomon.php?af=# on command line where #=AF
+#                Release 1.10
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
+#
 # ----------------------------------------------------------------------------
 # These scripts are loosely based on the webform example
 # in the PHPlot referfence manual.
@@ -16,6 +20,12 @@
 # ----------------------------------------------------------------------------
 # You must also enter the data filename into the picomon_img.php script.
 # ----------------------------------------------------------------------------
+# The user can enter an optional averaging factor on the picomon cmd line
+# e.g., picomon.php?af=10
+# No AF or AF=0 entered by user => Use default MAXSIZE
+# AF=1 => No averaging, use all data
+# AF>1 => Do averaging by user-chosen factor
+# ---------------------------------------------------------------------------
 # Hint: Set display_errors=on in php.ini for development, off for deployment.
 # ----------------------------------------------------------------------------
 # Programming note: These functions mainly use global variables rather than
@@ -164,7 +174,8 @@ $param = array("n" => -440,
  "pw" => 'root',
  "type" => 'phase',
  "w" => 1024,
- "h" => 768);
+ "h" => 768,
+ "af" => 0);
 # We define the associative array $measinfo
 # to hold several items of information about the current measurement
 $measinfo = array("desc" => ' ',
@@ -176,6 +187,8 @@ $module = 0;
 $type = 'phase';
 # Alternative plot text
 $alt = 'Phase data plot.';
+# Averaging factor
+$af = 0;
 
 # ----------------------------------------------------------------------------
 # Function build_url() is used to generate a URL with parameters
@@ -935,10 +948,16 @@ function get_meas_info($pg, $n)
 # This value persists until the user closes his/her browser
 # and is used to retain the module selection so the plot can be refreshed
 # without reselecting it
+# We get an optional user-entered AF from the picomon command line
 session_start();
 begin_page("PicoPak Web Monitor");
 show_descriptive_text();
 show_user_prompt();
+if(!empty($_GET))
+{
+    $af = intval($_GET['af']);
+    $param["af"] = $af;
+}
 $pg = connect_to_db($db_host, $db_name, $db_user, $db_password);
 $num_active = fill_list($pg, $param);
 show_form($param, $num_active, $meas);
