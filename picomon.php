@@ -10,6 +10,9 @@
 # Rev E 08/29/16 Add AF from URL parameter passed to image script
 #                from picomon.php?af=# on command line where #=AF
 #                Release 1.10
+# Rev F 08/31/16 Fix error in analysis tau
+#                Release 1.20
+#
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 #
 # ----------------------------------------------------------------------------
@@ -167,7 +170,7 @@ $param = array("n" => -440,
  "c" => 0,
  "begin" => 57604.5,
  "end" => 57605.5,
- "tau" => 5.0,
+ "tau" => 1.0,
  "host" => '127.0.0.1',
  "db" => 'ppd',
  "user" => 'postgres',
@@ -175,7 +178,7 @@ $param = array("n" => -440,
  "type" => 'phase',
  "w" => 1024,
  "h" => 768,
- "af" => 0);
+ "af" => 0); // af=0 in URL is code for automatic averaging to MAXSIZE
 # We define the associative array $measinfo
 # to hold several items of information about the current measurement
 $measinfo = array("desc" => ' ',
@@ -846,7 +849,11 @@ function get_tau($pg, $n)
 
     If(SHOW_MEAS_TAU)
     {
-        # Display measurement tau    
+        # Display measurement tau
+        # This is the measurement tau which is passed to the
+        # picomon_img script as a URL parameter
+        # The plotting and analysis tau is this tau multiplied by the AF
+        # That is done where appropriate in the picomon_img script    
         echo("The measurement tau is $tau seconds for S/N code $n.");
     }
 

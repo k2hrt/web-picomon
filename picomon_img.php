@@ -12,6 +12,8 @@
 #       08/28/16 Minor editing and commenting
 #       08/29/16 Add AF from URL parameter passed by main script
 #                Release 1.10
+# Rev F 08/31/16 Fix error in analysis tau
+#                Release 1.20
 #
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
@@ -96,8 +98,19 @@ $ch = strval($_GET['ch']);
 $begin = floatval($_GET['begin']);
 # Ending data MJD (current MJD)
 // $end = floatval($_GET['end']); // Not used
-# Tau
+# Tau - This is the measurement tau
+# The plotting and analysis tau is multiplied by AF
 $tau = floatval($_GET['tau']);
+# Averaging factor
+$af = intval($_GET['af']);
+# The phase data are downsampled by the averaging factor
+# as it is put into the $phase[][] array, so all use of
+# tau in this script is multiplied by $af except if
+# the af in the URL is zero as a code for using MAXSIZE
+if($af>0)
+{
+	$tau = $tau * $af;
+}
 # PostgreSQL logon credentials
 $db_host = strval($_GET['host']);
 $db_name = strval($_GET['db']);
@@ -107,8 +120,6 @@ $db_password = strval($_GET['pw']);
 $w = intval($_GET['w']);
 # Plot height in pixels
 $h = intval($_GET['h']);
-# Averaging factor
-$af = intval($_GET['af']);
 # Phase data units
 $units = " ";
 # Plot title
@@ -308,6 +319,7 @@ function read_and_downsample_data($pg2, $n, $begin)
     GLOBAL $phase;
     GLOBAL $numN;
     GLOBAL $af;
+    GLOBAL $tau;
     GLOBAL $title; // For testing
 
     # Read phase data from database.
@@ -350,11 +362,14 @@ function read_and_downsample_data($pg2, $n, $begin)
         # Initialize data point index
         $i = 0;
 
-        # Set the averasging factor
+        # Set the averaging factor
         if($af == 0) // Use default averaging per MAXSIZE
         {
             # Determine the required averaging factor
             $af = ceil($numN / MAXSIZE);
+
+            # Adjust the analysis tau accordingly
+            $tau = $tau * $af;
         }
         else
         {
