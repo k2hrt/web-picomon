@@ -1,17 +1,21 @@
 <?php
 # ----------------------------------------------------------------------------
 # PicoMon Main Script picomon.php
-# Rev 0 08/12/16 Everything basically working - uploaded to Github
-# Rev A 08/13/16 Added frequency data plotting code
-# Rev B 08/15/16 Added frequency plot selection
-#                Eliminated global variable use in several functions
-# Rev C 08/16/16 Add writing of phase data file
+# ----------------------------------------------------------------------------
+# Rev 0 08/12/16 Everything basically working - uploaded to Github.
+# Rev A 08/13/16 Added frequency data plotting code.
+# Rev B 08/15/16 Added frequency plot selection.
+#                Eliminated global variable use in several functions.
+# Rev C 08/16/16 Add writing of phase data file.
 # Rev D 08/18/16 Release 1.00
 # Rev E 08/29/16 Add AF from URL parameter passed to image script
-#                from picomon.php?af=# on command line where #=AF
+#                from picomon.php?af=# on command line where #=AF.
 #                Release 1.10
-# Rev F 08/31/16 Fix error in analysis tau
+# Rev F 08/31/16 Fix error in analysis tau.
 #                Release 1.20
+# Rev G 09/04/16 Change determination of # points, end MJD and span.
+#                Add display of current MJD in text above plot.
+#                Release 1.30
 #
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 #
@@ -144,9 +148,11 @@ $pg = 0;
 # PostgreSQL query result pointer
 $result = 0;
 # Beginning MJD
-$begin_mjd = 0;
-# End (Current) MJD
-$end_mjd = 0;
+$begin_mjd = 0.0;
+# End MJD
+$end_mjd = 0.0;
+# Current MJD
+$current_mjd = 0.0;
 # Measurement tau
 $tau = 0;
 # Measurement span
@@ -613,12 +619,14 @@ END;
 function show_graph()
 {
     # INPUTS
+    GLOBAL $pg;
     GLOBAL $n;
     GLOBAL $sn;
     GLOBAL $c;
     GLOBAL $ch;
     GLOBAL $begin_mjd;
     GLOBAL $end_mjd;
+    GLOBAL $current_mjd;
     GLOBAL $tau;
     GLOBAL $db_host;
     GLOBAL $db_name;
@@ -637,9 +645,50 @@ function show_graph()
 
     # START OF CODE
     # Estimate # data points
+
+    /* Obsolete code
     # This is easier than doing a query and is close enough
-    $points = (int)(($end_mjd - $begin_mjd) * 86400.0 / $tau); 
-    
+    $points = (int)(($end_mjd - $begin_mjd) * 86400.0 / $tau);
+
+    # For testing
+    # echo("Points=$points ");
+
+    # The above estimate uses the current MJD as the end MJD
+    # and will be wrong if the run has stopped
+    # without being properly closed,
+    # or if the database connection hasd failed.
+    */
+
+    # Do a database query to determine the actual number of points 
+    # Compose query
+    $query = "SELECT count(*) FROM measurements WHERE sn=$n 
+        AND mjd>$begin_mjd";
+
+    # Perform query
+    $result = pg_query($pg, $query);
+
+    # Get # data points
+    list($points) = pg_fetch_row($result);
+
+    # For testing
+    # echo("Points=$points ");
+    # echo("End=$end_mjd ");
+
+    # We cannot get the end_mjd from the database
+    # because it may not exist if the run ended improperly
+    # without it being put into the database.
+    # And using the current MJD can also be wrong
+    # The best approach is to calculate it based on the beginning MJD,
+    # the measurement tau, and the # of data points
+    $end_mjd = $begin_mjd + floatval($tau) * floatval($points) / 86400.0;
+
+    # For testing
+    # echo("End=$end_mjd ");
+
+    # We also need to find the span
+    calc_span($begin_mjd, $end_mjd);
+    # and we also show current MJD in text above plot
+
     # Insert URL parameters
     $param['n'] = $n;
     $param['sn'] = $sn;
@@ -684,7 +733,8 @@ function show_graph()
 <hr>
 <p>
 
-Plot of $points points of phase data from the $measinfo[0] run for $measinfo[1] vs $measinfo[2] with a $tau second tau for PicoPak S/N $sn$ch from MJD $begin_mjd to $end_mjd, a span of $days days, $hours hours, $mins minutes and $secs seconds:
+Plot of $points points of phase data from the $measinfo[0] run for $measinfo[1] vs $measinfo[2] with a $tau second tau for PicoPak S/N $sn$ch from MJD $begin_mjd to $end_mjd, a span of $days days, $hours hours, $mins minutes and $secs seconds at 
+current MJD $current_mjd:
 
 <p><img src="$img_url" width="{$param['w']}" height="{$param['h']}"
     alt="$alt">
@@ -969,9 +1019,8 @@ $pg = connect_to_db($db_host, $db_name, $db_user, $db_password);
 $num_active = fill_list($pg, $param);
 show_form($param, $num_active, $meas);
 $begin_mjd = get_begin_mjd($pg, $n);
-$end_mjd = get_current_mjd();
+$current_mjd = get_current_mjd();
 $tau = get_tau($pg, $n);
-calc_span($begin_mjd, $end_mjd);
 $measinfo = get_meas_info($pg, $n);
 show_graph();
 end_page();

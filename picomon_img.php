@@ -14,6 +14,9 @@
 #                Release 1.10
 # Rev F 08/31/16 Fix error in analysis tau
 #                Release 1.20
+# Rev G 09/04/16 Change determination of # points, end MJD and span.
+#                Add display of current MJD in text above plot.
+#                Release 1.30
 #
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
