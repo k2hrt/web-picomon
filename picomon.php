@@ -16,6 +16,8 @@
 # Rev G 09/04/16 Change determination of # points, end MJD and span.
 #                Add display of current MJD in text above plot.
 #                Release 1.30
+# Rev H 09/05/16 Add optional freq avg and phase slope lines
+#                Release 1.40
 #
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 #

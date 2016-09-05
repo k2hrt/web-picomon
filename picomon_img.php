@@ -17,6 +17,8 @@
 # Rev G 09/04/16 Change determination of # points, end MJD and span.
 #                Add display of current MJD in text above plot.
 #                Release 1.30
+# Rev H 09/05/16 Add optional freq avg and phase slope lines
+#                Release 1.40
 #
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
@@ -142,6 +144,8 @@ $numN = 0;
 $numM = 0 ;
 # Phase slope
 $slope = 0.0;
+# Phase intercept
+$intercept;
 # Average fractional frequency offset
 $frequency = 0.0;
 # Average frequency
@@ -157,6 +161,9 @@ $leg3 = '';
 # Macros to control legends
 define('SHOW_FREQ', TRUE);
 define('SHOW_ADEV', TRUE);
+# Macros to control plot lines
+define('SHOW_AVG', TRUE);
+define('SHOW_SLOPE', TRUE);
 
 # Phase data folder
 # Edit this name as desired
@@ -432,10 +439,13 @@ function read_and_downsample_data($pg2, $n, $begin)
 # Returns $slope
 function calc_freq_slope($phase, $tau)
 {
+    # Output
+    $intercept;
+
     # For testing
     GLOBAL $title;
 
-    # Local variables for sums and slope
+    # Local variables for sums, slope and intercept
     $x = 0;
     $y = 0;
     $xy = 0;
@@ -456,6 +466,9 @@ function calc_freq_slope($phase, $tau)
 
     # Calculate slope
     $slope = (($numN*$xy) - ($x*$y)) / (($numN*$xx) - ($x*$x));
+
+    # Calculate y intercept
+    $intercept = (($y - $slope*$x) / $numN);
 
     # Scale slope for measurement tau
     $slope /= $tau;
@@ -586,6 +599,7 @@ function scale_phase_data()
 
     # OUTPUTS
     GLOBAL $units;
+    GLOBAL $factor;
     GLOBAL $numN;
     GLOBAL $title; // For testing
 
@@ -859,9 +873,16 @@ function draw_graph()
     GLOBAL $leg2;
     GLOBAL $leg3;
     GLOBAL $af;
+    GLOBAL $avg;
+    GLOBAL $numM;
+    GLOBAL $slope;
+    GLOBAL $intercept;
+    GLOBAL $numN;
+    GLOBAL $factor;
     GLOBAL $title; // For testing
 
     $plot = new PHPlot($w, $h);
+    $plot->SetPrintImage(False); // For dual plot
     $plot->SetPlotType('lines');
     # Omit this title setting if using it to display an earlier value
     if($type == 'phase')
@@ -908,7 +929,30 @@ function draw_graph()
         $plot->SetLegend($leg3);
     }
     $plot->SetLegendStyle('right', 'none');
-    $plot->DrawGraph();
+    $plot->DrawGraph(); // Draw main data plot
+    # Draw frequency average
+    if(SHOW_AVG)
+    {
+        if($type == 'freq')
+        {
+            $line=array(array('',1,$avg),array('',$numM,$avg));
+            $plot->SetDataValues($line);
+            $plot->SetDataColors(array('green'));
+            $plot->DrawGraph(); // Draw freq avg
+        }
+    }
+    if(SHOW_SLOPE)
+    {
+        if($type == 'phase')
+        {
+            $line=array(array('',1,($intercept*$factor)),
+                array('',$numN,(($intercept+($slope*$numN))*$factor)));
+            $plot->SetDataValues($line);
+            $plot->SetDataColors(array('green'));
+            $plot->DrawGraph(); // Draw phase slope
+        }
+    }
+    $plot->PrintImage(); // Show dual plot
 }
 
 # ----------------------------------------------------------------------------
