@@ -19,6 +19,8 @@
 #                Release 1.30
 # Rev H 09/05/16 Add optional freq avg and phase slope lines
 #                Release 1.40
+# Rev I 09/06/16 Fix error in phase slope line calc
+#                Release 1.50
 #
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
 # ----------------------------------------------------------------------------
@@ -145,7 +147,7 @@ $numM = 0 ;
 # Phase slope
 $slope = 0.0;
 # Phase intercept
-$intercept;
+$intercept = 0.0;
 # Average fractional frequency offset
 $frequency = 0.0;
 # Average frequency
@@ -440,7 +442,7 @@ function read_and_downsample_data($pg2, $n, $begin)
 function calc_freq_slope($phase, $tau)
 {
     # Output
-    $intercept;
+    GLOBAL $intercept;
 
     # For testing
     GLOBAL $title;
@@ -473,8 +475,8 @@ function calc_freq_slope($phase, $tau)
     # Scale slope for measurement tau
     $slope /= $tau;
 
-    # For testing - Put freq into title
-    // $title = "Avg Freq Offset = " . $slope;
+    # For testing - Put slope & intercept into title
+    # $title = "Slope = " . $slope . ", " . "Intercept = " . $intercept;
 
     # Return slope
     return $slope; 
@@ -695,6 +697,7 @@ function scale_freq_data()
 
     # OUTPUTS
     GLOBAL $units;
+    GLOBAL $factor;
     GLOBAL $numM;
     GLOBAL $title; // For testing
 
@@ -906,6 +909,10 @@ function draw_graph()
         }        
         $plot->SetDataValues($freq);
     }
+
+    # For testing
+    # $title = ($intercept*$factor) . " " . (($intercept+($slope*$tau*$numN))*$factor);
+
     $plot->SetTitle($title);
     $plot->SetTitleColor('blue');
     $plot->SetDataType('data-data');
@@ -941,12 +948,13 @@ function draw_graph()
             $plot->DrawGraph(); // Draw freq avg
         }
     }
+    # Draw phase slope
     if(SHOW_SLOPE)
     {
         if($type == 'phase')
         {
             $line=array(array('',1,($intercept*$factor)),
-                array('',$numN,(($intercept+($slope*$numN))*$factor)));
+                array('',$numN,(($intercept+($slope*$tau*$numN))*$factor)));
             $plot->SetDataValues($line);
             $plot->SetDataColors(array('green'));
             $plot->DrawGraph(); // Draw phase slope
