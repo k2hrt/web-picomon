@@ -20,6 +20,7 @@
 # Rev H 09/05/16 Add optional freq avg and phase slope lines
 #                Release 1.40
 # Rev I 09/06/16 Fix error in phase slope line calc
+#                Fix error in freq avg line calc
 #                Release 1.50
 #
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
@@ -942,7 +943,7 @@ function draw_graph()
     {
         if($type == 'freq')
         {
-            $line=array(array('',1,$avg),array('',$numM,$avg));
+            $line=array(array('',1,$avg*$factor),array('',$numM,$avg*$factor));
             $plot->SetDataValues($line);
             $plot->SetDataColors(array('green'));
             $plot->DrawGraph(); // Draw freq avg
