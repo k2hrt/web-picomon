@@ -21,6 +21,7 @@
 #                Release 1.40
 # Rev I 09/06/16 Fix error in phase slope line calc
 #                Fix error in freq avg line calc
+#                Add legend positioning
 #                Release 1.50
 #
 # (c) W.J. Riley Hamilton Technical Services All Rights Reserved
@@ -881,6 +882,7 @@ function draw_graph()
     GLOBAL $numM;
     GLOBAL $slope;
     GLOBAL $intercept;
+    GLOBAL $sigma;
     GLOBAL $numN;
     GLOBAL $factor;
     GLOBAL $title; // For testing
@@ -896,6 +898,17 @@ function draw_graph()
         $title = 'PicoPak S/N ' . $sn . $ch . ' Phase Data';
         $label = 'Phase, ' . $units;
         $plot->SetDataValues($phase);
+
+        # Normal (default) legend position at upper right of plot:
+        # $plot->SetLegendPosition(1, 0, 'plot', 1, 0, -5, 5);
+        # Alternative legend position at upper left of plot:
+        # $plot->SetLegendPosition(0, 0, 'plot', 0, 0, 5, 5);
+        # Want to use that when phase data is in upper right of plot
+        # e.g., when $phase[$numN-1][2] > $phase[0][2]
+        if($phase[$numN-1][2] > $phase[0][2])
+        {
+            $plot->SetLegendPosition(0, 0, 'plot', 0, 0, 5, 5);
+        }
     }
     else // Frequency data
     {
@@ -909,6 +922,14 @@ function draw_graph()
            $plot->SetPlotType('squared');
         }        
         $plot->SetDataValues($freq);
+
+        # Want to use upper left legend position
+        # when freq data is significantly in upper right of plot
+        # e.g., when $phase[$numN-1][2] > $phase[0][2] by 3 sigma
+        if($freq[$numM-1][2] > $freq[0][2] + 3*$sigma*$factor)
+        {
+            $plot->SetLegendPosition(0, 0, 'plot', 0, 0, 5, 5);
+        }
     }
 
     # For testing
